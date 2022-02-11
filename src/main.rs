@@ -8,7 +8,7 @@ use std::env;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    let conn_str = env::var("MONGODB_URL").expect("Environment variable MONGODB_URL is not set");
+    let conn_str = env::var("MONGODB_URI").expect("Environment variable MONGODB_URL is not set");
     let server_host = env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_owned());
     let server_port = env::var("PORT")
         .unwrap_or_else(|_| "8000".to_owned())

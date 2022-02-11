@@ -3,7 +3,7 @@
 ## Deployment
 
 ```shell
-MONGODB_URL=mongodb://127.0.0.1/pixiv?authSource=admin genshin-gallery-api 
+MONGODB_URI=mongodb://127.0.0.1/pixiv?authSource=admin genshin-gallery-api 
 ```
 
 or use `dotenv` to simplify loading environment variables
@@ -15,7 +15,7 @@ dotenv genshin-gallery-api
 or use Docker
 
 ```shell
-docker run --rm -p 8000:8000 -e MONGODB_URL=mongodb://127.0.0.1/pixiv?authSource=admin genshin-gallery-api:latest
+docker run --rm -p 8000:8000 -e MONGODB_URI=mongodb://127.0.0.1/pixiv?authSource=admin genshin-gallery-api:latest
 ```
 
 ## Mongodb dependency
