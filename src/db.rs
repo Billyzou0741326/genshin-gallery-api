@@ -1,6 +1,6 @@
 use crate::artwork::ArtworkInfo;
 use mongodb::bson::{doc, Document};
-use mongodb::options::{ClientOptions, CreateCollectionOptions, IndexOptions};
+use mongodb::options::{ClientOptions, CreateCollectionOptions, IndexOptions, InsertManyOptions};
 use mongodb::{bson, Client, Database, IndexModel};
 use serde::{Deserialize, Serialize};
 use tokio::join;
@@ -254,4 +254,19 @@ pub async fn get_artwork_count_r18(db: &Database) -> Result<u64, Box<dyn std::er
     let collection = db.collection::<ArtworkInfo>("artworks_r18");
     let result = collection.count_documents(None, None).await?;
     Ok(result)
+}
+
+/// Not used. The official mongodb driver doesn't support bulk write
+pub async fn save_artwork_many(
+    db: &Database,
+    artwork_list: Vec<ArtworkInfo>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let collection = db.collection::<ArtworkInfo>("artworks");
+    let _result = collection
+        .insert_many(
+            artwork_list,
+            InsertManyOptions::builder().ordered(false).build(),
+        )
+        .await;
+    Ok(())
 }
