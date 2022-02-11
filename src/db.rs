@@ -211,3 +211,47 @@ pub async fn get_artwork_info_by_ids(
     Ok(result)
 }
 
+pub async fn get_latest_upload_time(db: &Database) -> Result<i64, Box<dyn std::error::Error>> {
+    let collection = db.collection::<ArtworkInfo>("artworks");
+    let pipeline = vec![
+        doc! { "$project": { "art_id": 1, "upload_timestamp": 1 } },
+        doc! { "$sort": { "upload_timestamp": -1, "art_id": 1 } },
+        doc! { "$limit": 1 },
+    ];
+    let mut cursor = collection.aggregate(pipeline, None).await?;
+    while let Some(val) = cursor.next().await {
+        if let Ok(document) = val {
+            if let Ok(upload_timestamp) = document.get_i32("upload_timestamp") {
+                return Ok(upload_timestamp.into());
+            }
+            if let Ok(upload_timestamp) = document.get_i64("upload_timestamp") {
+                return Ok(upload_timestamp);
+            }
+        }
+    }
+    Ok(0)
+}
+
+pub async fn get_artwork_count_total(db: &Database) -> Result<u64, Box<dyn std::error::Error>> {
+    let collection = db.collection::<ArtworkInfo>("artworks");
+    let result = collection.count_documents(None, None).await?;
+    Ok(result)
+}
+
+pub async fn get_artwork_count_sfw(db: &Database) -> Result<u64, Box<dyn std::error::Error>> {
+    let collection = db.collection::<ArtworkInfo>("artworks_sfw");
+    let result = collection.count_documents(None, None).await?;
+    Ok(result)
+}
+
+pub async fn get_artwork_count_nsfw(db: &Database) -> Result<u64, Box<dyn std::error::Error>> {
+    let collection = db.collection::<ArtworkInfo>("artworks_nsfw");
+    let result = collection.count_documents(None, None).await?;
+    Ok(result)
+}
+
+pub async fn get_artwork_count_r18(db: &Database) -> Result<u64, Box<dyn std::error::Error>> {
+    let collection = db.collection::<ArtworkInfo>("artworks_r18");
+    let result = collection.count_documents(None, None).await?;
+    Ok(result)
+}
