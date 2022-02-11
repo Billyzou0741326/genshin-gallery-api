@@ -1,7 +1,7 @@
 use crate::artwork::ArtworkInfo;
 use mongodb::bson::{doc, Document};
 use mongodb::options::{ClientOptions, CreateCollectionOptions, IndexOptions};
-use mongodb::{Client, Database, IndexModel};
+use mongodb::{bson, Client, Database, IndexModel};
 use serde::{Deserialize, Serialize};
 use tokio::join;
 use tokio_stream::StreamExt;
@@ -185,3 +185,29 @@ pub async fn get_ids(
         .await;
     Ok(result)
 }
+
+pub async fn get_artwork_info_by_ids(
+    db: &Database,
+    id_list: Vec<i64>,
+) -> Result<Vec<ArtworkInfo>, Box<dyn std::error::Error>> {
+    let collection = db.collection::<ArtworkInfo>("artworks");
+    let filtering_match_conditions: Vec<Document> = id_list
+        .iter()
+        .map(|art_id| doc! { "art_id": art_id })
+        .collect();
+    let filtering = doc! {
+        "$match": { "$or": filtering_match_conditions },
+    };
+    let pipeline = vec![filtering];
+    let mut result: Vec<ArtworkInfo> = vec![];
+    let mut cursor = collection.aggregate(pipeline, None).await?;
+    while let Some(val) = cursor.next().await {
+        if let Ok(document) = val {
+            if let Ok(artwork) = bson::from_document(document) {
+                result.push(artwork);
+            }
+        }
+    }
+    Ok(result)
+}
+
