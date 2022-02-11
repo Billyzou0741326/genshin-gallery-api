@@ -1,7 +1,11 @@
-use mongodb::bson::doc;
+use crate::artwork::ArtworkInfo;
+use mongodb::bson::{doc, Document};
 use mongodb::options::{ClientOptions, CreateCollectionOptions, IndexOptions};
 use mongodb::{Client, Database, IndexModel};
+use serde::{Deserialize, Serialize};
 use tokio::join;
+use tokio_stream::StreamExt;
+use typed_builder::TypedBuilder;
 
 pub async fn create_client(conn_str: &str) -> Result<Client, Box<dyn std::error::Error>> {
     let client_options = ClientOptions::parse(conn_str).await?;
@@ -100,4 +104,84 @@ pub async fn create_indexes(db: &Database) -> Result<(), Box<dyn std::error::Err
         )
         .await?;
     Ok(())
+}
+
+#[derive(Clone, Debug, Deserialize, TypedBuilder, Serialize)]
+#[builder(field_defaults(default, setter(strip_option)))]
+pub struct ArtworkQueryOption {
+    pub characters: Option<Vec<String>>,
+    pub image_type: Option<String>,
+}
+
+fn filter_conditions(options: &ArtworkQueryOption) -> Vec<Document> {
+    return match &options.characters {
+        Some(characters) => {
+            let character_filters: Vec<Document> = characters
+                .iter()
+                .filter(|chara| !chara.trim().is_empty())
+                .map(|chara| {
+                    doc! {
+                        "characters": {
+                            "$regex": chara.trim(),
+                            "$options": "i",
+                        }
+                    }
+                })
+                .collect();
+            return character_filters;
+        }
+        None => vec![],
+    };
+}
+
+fn collection_name_by_artwork_type(artwork_type: String) -> String {
+    let t = artwork_type.to_uppercase();
+    if t == "SFW" {
+        return "artworks_sfw".to_owned();
+    } else if t == "NSFW" {
+        return "artworks_nsfw".to_owned();
+    } else if t == "R18" {
+        return "artworks_r18".to_owned();
+    }
+    "artworks_sfw".to_owned()
+}
+
+pub async fn get_ids(
+    db: &Database,
+    options: impl Into<Option<ArtworkQueryOption>>,
+) -> Result<Vec<i64>, Box<dyn std::error::Error>> {
+    let mut filtering = doc! { "$match": {} };
+    let filtering_match = filtering.get_document_mut("$match").unwrap();
+    let mut filtering_match_conditions = vec![];
+    let mut collection_name = "artworks_sfw".to_owned();
+    if let Some(val) = options.into() {
+        filtering_match_conditions = filter_conditions(&val);
+        if let Some(artwork_type) = &val.image_type {
+            collection_name = collection_name_by_artwork_type(artwork_type.clone());
+        }
+    }
+    if !filtering_match_conditions.is_empty() {
+        filtering_match.insert("$or", filtering_match_conditions);
+    }
+    let collection = db.collection::<ArtworkInfo>(&collection_name);
+    let query_aggregate = vec![
+        filtering,
+        doc! { "$sort": { "upload_timestamp": -1 } },
+        doc! { "$project": { "art_id": 1 } },
+    ];
+    let cursor = collection.aggregate(query_aggregate, None).await?;
+    let result = cursor
+        .map(|item| match item {
+            Ok(val) => {
+                if let Ok(art_id) = val.get_i32("art_id") {
+                    return art_id.into();
+                }
+                val.get_i64("art_id").unwrap_or(-1)
+            }
+            Err(_) => -1,
+        })
+        .filter(|val| *val != -1)
+        .collect()
+        .await;
+    Ok(result)
 }
