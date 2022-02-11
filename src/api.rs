@@ -1,16 +1,22 @@
 use actix_web::web::{Data, Query};
-use actix_web::{get, http, web, HttpResponse, Responder};
+use actix_web::{get, http, web, HttpRequest, HttpResponse, Responder};
 use mongodb::Database;
 use serde::Deserialize;
 use serde_json::json;
+use serde_qs;
 
-use crate::db::{get_ids, ArtworkQueryOption};
+use crate::db::{get_ids, get_artwork_info_by_ids, ArtworkQueryOption};
 
 #[derive(Deserialize)]
 pub struct ArtworkIdRequest {
     #[serde(rename = "type")]
     art_type: Option<String>,
     character: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct ArtworkInfoRequest {
+    ids: Vec<i64>,
 }
 
 #[get("/api/health")]
@@ -73,5 +79,31 @@ pub async fn api_character_ids(
         Err(e) => HttpResponse::InternalServerError()
             .insert_header((http::header::ACCESS_CONTROL_ALLOW_ORIGIN, "*"))
             .body(e.to_string()),
+    }
+}
+
+#[get("/api/image-info")]
+pub async fn api_image_info(db: Data<Database>, req: HttpRequest) -> impl Responder {
+    // Need to explicitly parse the query string since they're arrays
+    // https://github.com/samscott89/serde_qs/blob/main/examples/introduction.rs
+    let query = req.query_string();
+    match serde_qs::from_str::<ArtworkInfoRequest>(query) {
+        Ok(info) => match get_artwork_info_by_ids(&db, info.ids).await {
+            Ok(artwork_info) => HttpResponse::Ok()
+                .content_type("application/json")
+                .insert_header((http::header::ACCESS_CONTROL_ALLOW_ORIGIN, "*"))
+                .body(
+                    json!({
+                        "data": artwork_info,
+                    })
+                    .to_string(),
+                ),
+            Err(_) => HttpResponse::InternalServerError()
+                .insert_header((http::header::ACCESS_CONTROL_ALLOW_ORIGIN, "*"))
+                .body(""),
+        },
+        Err(_) => HttpResponse::BadRequest()
+            .insert_header((http::header::ACCESS_CONTROL_ALLOW_ORIGIN, "*"))
+            .body(""),
     }
 }
