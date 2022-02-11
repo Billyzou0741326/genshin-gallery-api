@@ -4,8 +4,12 @@ use mongodb::Database;
 use serde::Deserialize;
 use serde_json::json;
 use serde_qs;
+use tokio::join;
 
-use crate::db::{get_ids, get_artwork_info_by_ids, ArtworkQueryOption};
+use crate::db::{
+    get_artwork_count_nsfw, get_artwork_count_r18, get_artwork_count_sfw, get_artwork_count_total,
+    get_artwork_info_by_ids, get_ids, get_latest_upload_time, ArtworkQueryOption,
+};
 
 #[derive(Deserialize)]
 pub struct ArtworkIdRequest {
@@ -106,4 +110,31 @@ pub async fn api_image_info(db: Data<Database>, req: HttpRequest) -> impl Respon
             .insert_header((http::header::ACCESS_CONTROL_ALLOW_ORIGIN, "*"))
             .body(""),
     }
+}
+
+#[get("/api/statistics")]
+pub async fn api_statistics(db: Data<Database>) -> impl Responder {
+    let results = join! {
+        get_artwork_count_total(&db),
+        get_latest_upload_time(&db),
+        get_artwork_count_sfw(&db),
+        get_artwork_count_nsfw(&db),
+        get_artwork_count_r18(&db),
+    };
+    let total = results.0.unwrap_or(0);
+    let days = results.1.unwrap_or(0);
+    let sfw = results.2.unwrap_or(0);
+    let nsfw = results.3.unwrap_or(0);
+    let r18 = results.4.unwrap_or(0);
+    let body = json! ({
+        "total": total,
+        "sfw": sfw,
+        "nsfw": nsfw,
+        "r18": r18,
+        "latestUploadDays": days,
+    });
+    HttpResponse::Ok()
+        .content_type("application/json")
+        .insert_header((http::header::ACCESS_CONTROL_ALLOW_ORIGIN, "*"))
+        .body(body.to_string())
 }
