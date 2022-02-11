@@ -1,6 +1,6 @@
 use mongodb::bson::doc;
-use mongodb::options::{ClientOptions, CreateCollectionOptions};
-use mongodb::{Client, Database};
+use mongodb::options::{ClientOptions, CreateCollectionOptions, IndexOptions};
+use mongodb::{Client, Database, IndexModel};
 use tokio::join;
 
 pub async fn create_client(conn_str: &str) -> Result<Client, Box<dyn std::error::Error>> {
@@ -61,5 +61,43 @@ pub async fn create_views(db: &Database) -> Result<(), Box<dyn std::error::Error
                 .build(),
         ),
     };
+    Ok(())
+}
+
+pub async fn create_indexes(db: &Database) -> Result<(), Box<dyn std::error::Error>> {
+    let collection = db.collection::<()>("artworks");
+    collection
+        .create_indexes(
+            vec![
+                IndexModel::builder()
+                    .keys(doc! {
+                        "art_id": 1,
+                    })
+                    .options(IndexOptions::builder().unique(true).build())
+                    .build(),
+                IndexModel::builder()
+                    .keys(doc! {
+                        "upload_timestamp": 1,
+                    })
+                    .build(),
+                IndexModel::builder()
+                    .keys(doc! {
+                        "characters": 1,
+                    })
+                    .build(),
+                IndexModel::builder()
+                    .keys(doc! {
+                        "moderate.type": 1,
+                    })
+                    .build(),
+                IndexModel::builder()
+                    .keys(doc! {
+                        "moderate.status": 1,
+                    })
+                    .build(),
+            ],
+            None,
+        )
+        .await?;
     Ok(())
 }
