@@ -4,7 +4,7 @@ RUN cargo init --bin .
 COPY Cargo.* ./
 RUN touch src/lib.rs \
     && apk add --no-cache musl-dev binutils \
-    && cargo build
+    && cargo build --release
 
 FROM dev-env AS builder
 WORKDIR /usr/src/app
