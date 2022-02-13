@@ -14,6 +14,8 @@ use crate::db::{
     ArtworkQueryOption,
 };
 
+/// DbSyncToken authorizes database write operations.
+/// The token is preferably provided at runtime via environment variable
 pub struct DbSyncToken(String);
 
 impl DbSyncToken {
@@ -26,6 +28,7 @@ impl DbSyncToken {
     }
 }
 
+/// ArtworkIdRequest contains query params for `/api/characters` endpoint
 #[derive(Deserialize)]
 pub struct ArtworkIdRequest {
     #[serde(rename = "type")]
@@ -33,11 +36,14 @@ pub struct ArtworkIdRequest {
     character: Option<String>,
 }
 
+/// ArtworkInfoRequest contains query params for `/api/image-info` endpoint
 #[derive(Deserialize)]
 pub struct ArtworkInfoRequest {
-    ids: Vec<i64>,
+    ids: Option<Vec<i64>>,
 }
 
+/// api_health implies the application is ready.
+/// This is for docker health check
 #[get("/api/health")]
 pub async fn api_health() -> impl Responder {
     HttpResponse::Ok()
@@ -45,7 +51,8 @@ pub async fn api_health() -> impl Responder {
         .body("{}")
 }
 
-#[get("/api/all")]
+/// api_all returns all artwork ids
+#[get("/api/characters")]
 pub async fn api_all(db: Data<Database>, Query(info): Query<ArtworkIdRequest>) -> impl Responder {
     let characters = match info.character {
         Some(character) => vec![character],
@@ -73,6 +80,7 @@ pub async fn api_all(db: Data<Database>, Query(info): Query<ArtworkIdRequest>) -
     }
 }
 
+/// api_character_ids returns artwork ids related to a specific character
 #[get("/api/character/{name}")]
 pub async fn api_character_ids(
     db: Data<Database>,
@@ -96,18 +104,21 @@ pub async fn api_character_ids(
                 .to_string(),
             ),
         Err(e) => HttpResponse::InternalServerError()
+            .content_type("application/json")
             .insert_header((http::header::ACCESS_CONTROL_ALLOW_ORIGIN, "*"))
-            .body(e.to_string()),
+            .body(json!({ "message": e.to_string()}).to_string()),
     }
 }
 
+/// api_image_info takes a list of ids and returns the corresponding artwork metadata
 #[get("/api/image-info")]
 pub async fn api_image_info(db: Data<Database>, req: HttpRequest) -> impl Responder {
     // Need to explicitly parse the query string since they're arrays
     // https://github.com/samscott89/serde_qs/blob/main/examples/introduction.rs
     let query = req.query_string();
-    match serde_qs::from_str::<ArtworkInfoRequest>(query) {
-        Ok(info) => match get_artwork_info_by_ids(&db, info.ids).await {
+    let qs = serde_qs::Config::new(usize::MAX - 64, false);
+    match qs.deserialize_str::<ArtworkInfoRequest>(query) {
+        Ok(info) => match get_artwork_info_by_ids(&db, info.ids.unwrap_or_default()).await {
             Ok(artwork_info) => HttpResponse::Ok()
                 .content_type("application/json")
                 .insert_header((http::header::ACCESS_CONTROL_ALLOW_ORIGIN, "*"))
@@ -117,16 +128,19 @@ pub async fn api_image_info(db: Data<Database>, req: HttpRequest) -> impl Respon
                     })
                     .to_string(),
                 ),
-            Err(_) => HttpResponse::InternalServerError()
+            Err(e) => HttpResponse::InternalServerError()
+                .content_type("application/json")
                 .insert_header((http::header::ACCESS_CONTROL_ALLOW_ORIGIN, "*"))
-                .body(""),
+                .body(json!({ "message": e.to_string() }).to_string()),
         },
-        Err(_) => HttpResponse::BadRequest()
+        Err(e) => HttpResponse::BadRequest()
+            .content_type("application/json")
             .insert_header((http::header::ACCESS_CONTROL_ALLOW_ORIGIN, "*"))
-            .body(""),
+            .body(json!({ "message": e.to_string() }).to_string()),
     }
 }
 
+/// api_statistics tracks a few metadata on the collection level
 #[get("/api/statistics")]
 pub async fn api_statistics(db: Data<Database>) -> impl Responder {
     let results = join! {
@@ -137,16 +151,20 @@ pub async fn api_statistics(db: Data<Database>) -> impl Responder {
         get_artwork_count_r18(&db),
     };
     let total = results.0.unwrap_or(0);
-    let days = results.1.unwrap_or(0);
+    let t = results.1.unwrap_or(0);
     let sfw = results.2.unwrap_or(0);
     let nsfw = results.3.unwrap_or(0);
     let r18 = results.4.unwrap_or(0);
     let body = json! ({
-        "total": total,
-        "sfw": sfw,
-        "nsfw": nsfw,
-        "r18": r18,
-        "latestUploadDays": days,
+        "data": {
+            "artwork": {
+                "total": total,
+                "sfw": sfw,
+                "nsfw": nsfw,
+                "r18": r18,
+                "latestUploadTime": t,
+            }
+        }
     });
     HttpResponse::Ok()
         .content_type("application/json")
@@ -154,6 +172,7 @@ pub async fn api_statistics(db: Data<Database>) -> impl Responder {
         .body(body.to_string())
 }
 
+/// api_db_sync accepts authorized updates to the db
 #[post("/api/db/sync")]
 pub async fn api_db_sync(
     db: Data<Database>,
@@ -189,6 +208,7 @@ pub async fn api_db_sync(
     }
 }
 
+/// validate_db_sync_token checks the http authorize header against the token
 fn validate_db_sync_token(
     db_sync_token: String,
     headers: &http::header::HeaderMap,

@@ -4,16 +4,20 @@ use mongodb::bson::{doc, Document};
 use mongodb::options::{ClientOptions, CreateCollectionOptions, IndexOptions, ReplaceOptions};
 use mongodb::{bson, Client, Database, IndexModel};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use tokio::join;
 use tokio_stream::StreamExt;
 use typed_builder::TypedBuilder;
 
+/// Creates a mongodb client object from a connection string.
+/// The connection string is preferably provided at runtime via environment variable
 pub async fn create_client(conn_str: &str) -> Result<Client, Box<dyn std::error::Error>> {
     let client_options = ClientOptions::parse(conn_str).await?;
     let client = Client::with_options(client_options)?;
     Ok(client)
 }
 
+/// Create views to simplify queries
 pub async fn create_views(db: &Database) -> Result<(), Box<dyn std::error::Error>> {
     let collection_name = "artworks";
     let _ = join! {
@@ -69,6 +73,7 @@ pub async fn create_views(db: &Database) -> Result<(), Box<dyn std::error::Error
     Ok(())
 }
 
+/// Create indexes to enforce constraints and speed up queries
 pub async fn create_indexes(db: &Database) -> Result<(), Box<dyn std::error::Error>> {
     let collection = db.collection::<()>("artworks");
     collection
@@ -107,6 +112,7 @@ pub async fn create_indexes(db: &Database) -> Result<(), Box<dyn std::error::Err
     Ok(())
 }
 
+/// Parses the common query options
 #[derive(Clone, Debug, Deserialize, TypedBuilder, Serialize)]
 #[builder(field_defaults(default, setter(strip_option)))]
 pub struct ArtworkQueryOption {
@@ -114,6 +120,7 @@ pub struct ArtworkQueryOption {
     pub image_type: Option<String>,
 }
 
+/// Condition applied to database queries
 fn filter_conditions(options: &ArtworkQueryOption) -> Vec<Document> {
     return match &options.characters {
         Some(characters) => {
@@ -135,18 +142,16 @@ fn filter_conditions(options: &ArtworkQueryOption) -> Vec<Document> {
     };
 }
 
-fn collection_name_by_artwork_type(artwork_type: String) -> String {
-    let t = artwork_type.to_uppercase();
-    if t == "SFW" {
-        return "artworks_sfw".to_owned();
-    } else if t == "NSFW" {
-        return "artworks_nsfw".to_owned();
-    } else if t == "R18" {
-        return "artworks_r18".to_owned();
+fn collection_name_by_artwork_type(artwork_type: &str) -> &str {
+    match artwork_type.to_string().to_uppercase().as_str() {
+        "SFW" => "artworks_sfw",
+        "NSFW" => "artworks_nsfw",
+        "R18" => "artworks_r18",
+        _ => "artworks_sfw",
     }
-    "artworks_sfw".to_owned()
 }
 
+/// Get artwork ids
 pub async fn get_ids(
     db: &Database,
     options: impl Into<Option<ArtworkQueryOption>>,
@@ -158,7 +163,9 @@ pub async fn get_ids(
     if let Some(val) = options.into() {
         filtering_match_conditions = filter_conditions(&val);
         if let Some(artwork_type) = &val.image_type {
-            collection_name = collection_name_by_artwork_type(artwork_type.clone());
+            collection_name = collection_name_by_artwork_type(artwork_type.as_str())
+                .parse()
+                .unwrap();
         }
     }
     if !filtering_match_conditions.is_empty() {
@@ -187,31 +194,41 @@ pub async fn get_ids(
     Ok(result)
 }
 
+/// Get artwork info (metadata), e.g title, tags, url
 pub async fn get_artwork_info_by_ids(
     db: &Database,
     id_list: Vec<i64>,
 ) -> Result<Vec<ArtworkInfo>, Box<dyn std::error::Error>> {
+    if id_list.is_empty() {
+        return Ok(vec![]);
+    }
     let collection = db.collection::<ArtworkInfo>("artworks");
     let filtering_match_conditions: Vec<Document> = id_list
         .iter()
         .map(|art_id| doc! { "art_id": art_id })
         .collect();
-    let filtering = doc! {
-        "$match": { "$or": filtering_match_conditions },
-    };
+    let filtering = doc! { "$match": { "$or": filtering_match_conditions } };
     let pipeline = vec![filtering];
+    let mut map: HashMap<i64, ArtworkInfo> = HashMap::with_capacity(id_list.len());
     let mut result: Vec<ArtworkInfo> = vec![];
     let mut cursor = collection.aggregate(pipeline, None).await?;
-    while let Some(val) = cursor.next().await {
-        if let Ok(document) = val {
+    while let Some(cursor_result) = cursor.next().await {
+        if let Ok(document) = cursor_result {
             if let Ok(artwork) = bson::from_document(document) {
-                result.push(artwork);
+                let art: ArtworkInfo = artwork;
+                map.insert(art.art_id, art);
             }
+        }
+    }
+    for art_id in id_list {
+        if let Some(artwork) = map.get(&art_id) {
+            result.push(artwork.clone());
         }
     }
     Ok(result)
 }
 
+/// Get upload time of the most recent upload
 pub async fn get_latest_upload_time(db: &Database) -> Result<i64, Box<dyn std::error::Error>> {
     let collection = db.collection::<ArtworkInfo>("artworks");
     let pipeline = vec![
@@ -233,30 +250,36 @@ pub async fn get_latest_upload_time(db: &Database) -> Result<i64, Box<dyn std::e
     Ok(0)
 }
 
+/// Get total artwork stored in the database
 pub async fn get_artwork_count_total(db: &Database) -> Result<u64, Box<dyn std::error::Error>> {
     let collection = db.collection::<ArtworkInfo>("artworks");
     let result = collection.count_documents(None, None).await?;
     Ok(result)
 }
 
+/// Get sfw artwork count
 pub async fn get_artwork_count_sfw(db: &Database) -> Result<u64, Box<dyn std::error::Error>> {
     let collection = db.collection::<ArtworkInfo>("artworks_sfw");
     let result = collection.count_documents(None, None).await?;
     Ok(result)
 }
 
+/// Get nsfw artwork count
 pub async fn get_artwork_count_nsfw(db: &Database) -> Result<u64, Box<dyn std::error::Error>> {
     let collection = db.collection::<ArtworkInfo>("artworks_nsfw");
     let result = collection.count_documents(None, None).await?;
     Ok(result)
 }
 
+/// Get r18 artwork count
 pub async fn get_artwork_count_r18(db: &Database) -> Result<u64, Box<dyn std::error::Error>> {
     let collection = db.collection::<ArtworkInfo>("artworks_r18");
     let result = collection.count_documents(None, None).await?;
     Ok(result)
 }
 
+/// Update database artwork
+/// TODO: waiting for mongodb rust driver to implement bulk write support
 pub async fn save_artwork_many(
     db: &Database,
     artwork_list: Vec<ArtworkInfo>,
@@ -268,6 +291,7 @@ pub async fn save_artwork_many(
     Ok(())
 }
 
+/// use `replace_one` to upsert an artwork entry
 pub async fn save_artwork_one(
     db: &Database,
     artwork: ArtworkInfo,
@@ -276,12 +300,12 @@ pub async fn save_artwork_one(
     match collection
         .replace_one(
             doc! { "art_id": artwork.art_id },
-            artwork,
+            artwork.clone(),
             ReplaceOptions::builder().upsert(true).build(),
         )
         .await
     {
         Ok(_) => Ok(()),
-        _ => Err("failed to replace one".into()),
+        _ => Err(format!("failed to save artwork {:?}", artwork).into()),
     }
 }

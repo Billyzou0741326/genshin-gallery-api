@@ -9,19 +9,22 @@ use std::env;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    // Read environment variables
     let conn_str = env::var("MONGODB_URI").expect("Environment variable MONGODB_URI is not set");
     let server_host = env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_owned());
     let server_port = env::var("PORT")
         .unwrap_or_else(|_| "8000".to_owned())
         .parse::<u16>()
         .unwrap_or(8000);
-    let db_sync_token =
-        env::var("DB_SYNC_TOKEN").expect("Environment variable DB_SYNC_TOKEN is not set");
+    let db_sync_token = env::var("DB_SYNC_TOKEN").unwrap_or_default();  // not safe
+
+    // Connect to mongodb
     let client = create_client(conn_str.as_str()).await.unwrap();
     let db = client.default_database().unwrap();
     create_indexes(&db).await.unwrap();
     create_views(&db).await.unwrap();
 
+    // Launch http webserver
     HttpServer::new(move || {
         App::new()
             .app_data(Data::new(db.clone()))
