@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ArtworkImageUrl {
     pub thumb_mini: String,
     pub small: String,
@@ -8,7 +8,7 @@ pub struct ArtworkImageUrl {
     pub original: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ArtworkImageNsfw {
     pub drawings: f64,
     pub hentai: f64,
@@ -17,7 +17,7 @@ pub struct ArtworkImageNsfw {
     pub sexy: f64,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ArtworkModerate {
     #[serde(rename = "type")]
     pub art_type: Option<String>,
@@ -25,13 +25,13 @@ pub struct ArtworkModerate {
     pub reason: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ArtworkImage {
     pub urls: Option<ArtworkImageUrl>,
     pub nsfw: Option<ArtworkImageNsfw>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ArtworkInfo {
     pub art_id: i64,
     pub title: String,

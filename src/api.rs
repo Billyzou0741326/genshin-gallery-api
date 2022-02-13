@@ -1,15 +1,30 @@
+use crate::artwork::ArtworkInfo;
 use actix_web::web::{Data, Query};
-use actix_web::{get, http, web, HttpRequest, HttpResponse, Responder};
+use actix_web::{get, http, post, web, HttpRequest, HttpResponse, Responder};
 use mongodb::Database;
 use serde::Deserialize;
 use serde_json::json;
 use serde_qs;
+use std::str::from_utf8;
 use tokio::join;
 
 use crate::db::{
     get_artwork_count_nsfw, get_artwork_count_r18, get_artwork_count_sfw, get_artwork_count_total,
-    get_artwork_info_by_ids, get_ids, get_latest_upload_time, ArtworkQueryOption,
+    get_artwork_info_by_ids, get_ids, get_latest_upload_time, save_artwork_many,
+    ArtworkQueryOption,
 };
+
+pub struct DbSyncToken(String);
+
+impl DbSyncToken {
+    pub fn new(token: String) -> Self {
+        DbSyncToken { 0: token }
+    }
+
+    pub fn token(&self) -> String {
+        self.0.clone()
+    }
+}
 
 #[derive(Deserialize)]
 pub struct ArtworkIdRequest {
@@ -137,4 +152,56 @@ pub async fn api_statistics(db: Data<Database>) -> impl Responder {
         .content_type("application/json")
         .insert_header((http::header::ACCESS_CONTROL_ALLOW_ORIGIN, "*"))
         .body(body.to_string())
+}
+
+#[post("/api/db/sync")]
+pub async fn api_db_sync(
+    db: Data<Database>,
+    db_sync_token: Data<DbSyncToken>,
+    web::Json(artwork_list): web::Json<Vec<ArtworkInfo>>,
+    req: HttpRequest,
+) -> impl Responder {
+    if let Err(err) = validate_db_sync_token(db_sync_token.token(), req.headers()) {
+        return HttpResponse::BadRequest()
+            .content_type("application/json")
+            .body(
+                json!({
+                    "message": err.to_string(),
+                })
+                .to_string(),
+            );
+    }
+    match save_artwork_many(&db, artwork_list).await {
+        Ok(()) => HttpResponse::Ok().content_type("application/json").body(
+            json!({
+                "message": "ok",
+            })
+            .to_string(),
+        ),
+        Err(_) => HttpResponse::InternalServerError()
+            .content_type("application/json")
+            .body(
+                json! ({
+                    "message": "error",
+                })
+                .to_string(),
+            ),
+    }
+}
+
+fn validate_db_sync_token(
+    db_sync_token: String,
+    headers: &http::header::HeaderMap,
+) -> Result<(), Box<dyn std::error::Error>> {
+    if let Some(authorization_header) = headers.get(http::header::AUTHORIZATION) {
+        if let Ok(authorization_str) = from_utf8(authorization_header.as_bytes()) {
+            let expected = format!("Bearer {}", db_sync_token);
+            if authorization_str == expected {
+                return Ok(());
+            }
+            return Err("Invalid token".into());
+        }
+        return Err("Invalid authorization header format".into());
+    }
+    Err("Authorization header not found".into())
 }

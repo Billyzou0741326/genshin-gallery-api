@@ -1,6 +1,7 @@
 use crate::artwork::ArtworkInfo;
+use futures::future::join_all;
 use mongodb::bson::{doc, Document};
-use mongodb::options::{ClientOptions, CreateCollectionOptions, IndexOptions, InsertManyOptions};
+use mongodb::options::{ClientOptions, CreateCollectionOptions, IndexOptions, ReplaceOptions};
 use mongodb::{bson, Client, Database, IndexModel};
 use serde::{Deserialize, Serialize};
 use tokio::join;
@@ -256,17 +257,31 @@ pub async fn get_artwork_count_r18(db: &Database) -> Result<u64, Box<dyn std::er
     Ok(result)
 }
 
-/// Not used. The official mongodb driver doesn't support bulk write
 pub async fn save_artwork_many(
     db: &Database,
     artwork_list: Vec<ArtworkInfo>,
+) -> Result<(), Box<dyn std::error::Error + '_>> {
+    let join_handles = artwork_list
+        .iter()
+        .map(|artwork| save_artwork_one(db, artwork.clone()));
+    let _result = join_all(join_handles).await;
+    Ok(())
+}
+
+pub async fn save_artwork_one(
+    db: &Database,
+    artwork: ArtworkInfo,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let collection = db.collection::<ArtworkInfo>("artworks");
-    let _result = collection
-        .insert_many(
-            artwork_list,
-            InsertManyOptions::builder().ordered(false).build(),
+    match collection
+        .replace_one(
+            doc! { "art_id": artwork.art_id },
+            artwork,
+            ReplaceOptions::builder().upsert(true).build(),
         )
-        .await;
-    Ok(())
+        .await
+    {
+        Ok(_) => Ok(()),
+        _ => Err("failed to replace one".into()),
+    }
 }
