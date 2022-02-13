@@ -1,15 +1,7 @@
-FROM rust:1.58-alpine3.14 AS dev-env
-WORKDIR /usr/src/app
-RUN cargo init --bin .
-COPY Cargo.* ./
-RUN touch src/lib.rs \
-    && apk add --no-cache musl-dev binutils \
-    && cargo build --release
-
-FROM dev-env AS builder
+FROM museaqours/genshin-gallery-api-buildbase:0.1.0 AS builder
 WORKDIR /usr/src/app
 COPY . .
-RUN cargo install --path . \
+RUN CARGO_TARGET_DIR=/usr/src/app/target cargo install --path . \
     && strip /usr/local/cargo/bin/genshin-gallery-api
 
 FROM alpine:3.14
