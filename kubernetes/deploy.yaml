@@ -29,7 +29,7 @@ spec:
         app: genshin-gallery-api
     spec:
       containers:
-        image: museaqours/genshin-gallery-api:latest
+      - image: museaqours/genshin-gallery-api:latest
         name: genshin-gallery-api
         ports:
           - containerPort: 8000
