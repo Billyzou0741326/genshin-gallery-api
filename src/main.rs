@@ -21,8 +21,12 @@ async fn main() -> std::io::Result<()> {
     // Connect to mongodb
     let client = create_client(conn_str.as_str()).await.unwrap();
     let db = client.database("pixiv");
-    create_indexes(&db).await.unwrap();
-    create_views(&db).await.unwrap();
+    if let Err(e) = create_indexes(&db).await {
+        println!("{:?}", e)
+    }
+    if let Err(e) = create_views(&db).await {
+        println!("{:?}", e)
+    }
 
     // Launch http webserver
     HttpServer::new(move || {
