@@ -49,10 +49,10 @@ spec:
         - name: MONGODB_URL
           valueFrom:
             secretKeyRef:
-              name: genshin-picbed-svelte
+              name: genshin-picbed-secret
               key: MONGODB_URL
         - name: DB_SYNC_TOKEN
           valueFrom:
             secretKeyRef:
-              name: genshin-picbed-svelte
+              name: genshin-picbed-secret
               key: DB_SYNC_TOKEN
