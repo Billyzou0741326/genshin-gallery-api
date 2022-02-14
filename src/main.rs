@@ -20,7 +20,7 @@ async fn main() -> std::io::Result<()> {
 
     // Connect to mongodb
     let client = create_client(conn_str.as_str()).await.unwrap();
-    let db = client.default_database().unwrap();
+    let db = client.database("pixiv");
     create_indexes(&db).await.unwrap();
     create_views(&db).await.unwrap();
 
