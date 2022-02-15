@@ -1,5 +1,7 @@
+use actix_web::middleware::Logger;
 use actix_web::web::Data;
 use actix_web::{App, HttpServer};
+use env_logger::Env;
 use genshin_gallery_api::api::{
     api_all, api_character_ids, api_db_sync, api_health, api_image_info, api_statistics,
     DbSyncToken,
@@ -9,6 +11,8 @@ use std::env;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    env_logger::init_from_env(Env::default().default_filter_or("info"));
+
     // Read environment variables
     let conn_str = env::var("MONGODB_URL").expect("Environment variable MONGODB_URL is not set");
     let server_host = env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_owned());
@@ -16,21 +20,22 @@ async fn main() -> std::io::Result<()> {
         .unwrap_or_else(|_| "8000".to_owned())
         .parse::<u16>()
         .unwrap_or(8000);
-    let db_sync_token = env::var("DB_SYNC_TOKEN").unwrap_or_default();  // not safe
+    let db_sync_token = env::var("DB_SYNC_TOKEN").unwrap_or_default(); // not safe
 
     // Connect to mongodb
     let client = create_client(conn_str.as_str()).await.unwrap();
     let db = client.database("pixiv");
     if let Err(e) = create_indexes(&db).await {
-        println!("{:?}", e)
+        log::warn!("Create index {:?}", e);
     }
     if let Err(e) = create_views(&db).await {
-        println!("{:?}", e)
+        log::warn!("Create views {:?}", e);
     }
 
     // Launch http webserver
     HttpServer::new(move || {
         App::new()
+            .wrap(Logger::default())
             .app_data(Data::new(db.clone()))
             .app_data(Data::new(DbSyncToken::new(db_sync_token.to_owned())))
             .service(api_health)
