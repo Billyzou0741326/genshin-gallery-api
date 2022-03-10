@@ -2,11 +2,21 @@
 
 ## Grading guide
 
-Run the API server. It will listen on port 8000 (by default):
+A disposable mongodb instance is provided. Simply build and run the API server.
+The server will listen on port 8000 (by default):
 
 ```shell
 $ cargo build --release
-$ MONGODB_URL=mongodb://dev:w22rust_410510_sample@34.83.92.78/pixiv?authSource=admin target/release/genshin-gallery-api
+$ export MONGODB_URL=mongodb://dev:w22rust_410510_sample@34.83.92.78/pixiv?authSource=admin
+$ target/release/genshin-gallery-api
+```
+
+Powershell has a different way of specifying environment variables:
+
+```powershell
+PS > cargo build --release
+PS > $Env:MONGODB_URL = "mongodb://dev:w22rust_410510_sample@34.83.92.78/pixiv?authSource=admin"
+PS > .\target\release\genshin-gallery-api.exe
 ```
 
 On <https://w22rust.minamiktr.com> swagger-ui is deployed for API documentation and testing. 
@@ -14,8 +24,19 @@ From the `Servers` dropdown, select `http://localhost:8000/` and start testing A
 
 Under each API, `Try it out` and `Execute` the example.
 
+Meanwhile on the console running the API server, there should be logs showing API requests.
+
+Otherwise no GUIs or web interface is provided for this project. This is a standalone project
+unrelated to the live deployment, and while that web frontend uses this rust implementation
+as its backend, the web interface is not in the scope of this project and is not for grading.
+
+Care was taken to avoid copyrights violation. See below for details.
+
 
 ## Copyright concerns (pixiv)
+
+Pixiv has no explicit policies to prohibit reposting. It is up to individual
+artists to decide whether they allow the reposting / redistribution of their artwork.
 
 List of pixiv artists that ok'd reposting as long as source to the art is provided:
 
@@ -62,8 +83,10 @@ List of pixiv artists that ok'd reposting as long as source to the art is provid
 
 ## Copyright concerns (Genshin Impact | mihoyo)
 
-> Travelers are free to create original secondary content from 
-> already published content of the Genshin Impact series and 
+Mihoyo encourages the creation of fan arts:
+
+> Travelers (players) are free to create original secondary content 
+> from already published content of the Genshin Impact series and 
 > produce physical merchandise to give away or sell. However,
 > the production of physical merchandise is subject to the 
 > following conditions:
@@ -88,12 +111,12 @@ from mihoyo regarding fanart and merchadise.
 
 Artworks collected in the database **will not be used for commercial purposes**.
 
-**No images are modified, downloaded, or saved**. Only hyperlinks to the source artwork are indexed.
+**No images are modified, downloaded, or saved**. Only hyperlinks to the source artwork are stored.
 If the artist chose to remove their artwork from the source platform ([pixiv](https://pixiv.net/)), 
 the hyperlinks to the corresponding artwork will yield 404 Not Found, and the database will mark 
 them as `is_404` and may not display said artwork.
 
-In addition, only artworks blessed by their artists for reposting will be used for submission.
+In addition, only artworks blessed by their artists for reposting will be used in the submission.
 
 
 ## Deployment
@@ -130,4 +153,4 @@ docker run -d \
   mongo:4.4.12-rc1
 ```
 
-In deployment it is recommended to use a mongodb cluster, managed or self-hosted.
+For deployment it is recommended to use a mongodb cluster, managed or self-hosted.
