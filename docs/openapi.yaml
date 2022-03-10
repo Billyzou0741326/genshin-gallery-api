@@ -1,0 +1,260 @@
+openapi: 3.0.1
+info:
+  title: Genshin Gallery API
+  description: 'This is a sample demo Genshin Gallery API.  The API backs the project at <https://jp.minamiktr.com/>. '
+  contact:
+    email: zguanhan@pdx.edu
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  version: 0.1.0
+externalDocs:
+  description: Find out more about Swagger
+  url: http://swagger.io
+servers:
+- url: https://jp.minamiktr.com/
+- url: http://localhost:8000/
+tags:
+- name: art id
+  description: ""
+- name: art info
+- name: art statistics
+paths:
+  /api/characters:
+    get:
+      tags:
+      - art id
+      description: "Retrieves the artwork id of a specific artwork type"
+      parameters:
+      - name: type
+        in: query
+        description: The artwork type. May be 'SFW', 'NSFW', or 'R18'. Default 'SFW'
+        schema:
+          type: string
+          example: SFW
+      responses:
+        200:
+          description: ""
+          content:
+            'application/json':
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: integer
+                      format: int32
+                example:
+                  data:
+                  - 96778931
+                  - 96776766
+                  - 96776291
+                  - 96775963
+                  - 96769566
+                  - 96769266
+                  - 96769177
+                  - 96769144
+  /api/character/{character_name}:
+    get:
+      tags:
+      - art id
+      description: "Retrieves the artwork id of a specific artwork type and a character whose name matches `character_name`"
+      parameters:
+      - name: character_name
+        in: path
+        description: The character's name
+        required: true
+        schema:
+          type: string
+          example: ayaka
+      - name: type
+        in: query
+        description: The artwork type. May be 'SFW', 'NSFW', or 'R18'. Default 'SFW'
+        schema:
+          type: string
+          example: SFW
+      responses:
+        200:
+          description: ""
+          content:
+            'application/json':
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: integer
+                      format: int32
+                example:
+                  data:
+                  - 96720336
+                  - 96717167
+                  - 96671483
+                  - 96664758
+                  - 96646484
+                  - 96635504
+  /api/image-info:
+    get:
+      tags:
+      - art info
+      parameters:
+      - name: ids[]
+        in: query
+        description: The artwork id. This parameter can repeat.
+        style: form
+        explode: true
+        schema:
+          type: array
+          items:
+            type: integer
+            format: int32
+          example:
+          - 96776766
+          - 96778931
+          - 96776291
+      responses:
+        200:
+          description: ""
+          content:
+            'application/json':
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ArtworkInfo'
+  /api/statistics:
+    get:
+      tags:
+      - art statistics
+      responses:
+        200:
+          description: ""
+          content:
+            'application/json':
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      artwork:
+                        $ref: '#/components/schemas/ArtworkStatistics'
+components:
+  schemas:
+    ArtworkImageUrl:
+      type: object
+      properties:
+        thumb_mini:
+          type: string
+        small:
+          type: string
+        regular:
+          type: string
+        original:
+          type: string
+    ArtworkImageNsfw:
+      type: object
+      properties:
+        drawings:
+          type: number
+          format: double
+        hentai:
+          type: number
+          format: double
+        neutral:
+          type: number
+          format: double
+        porn:
+          type: number
+          format: double
+        sexy:
+          type: number
+          format: double
+    ArtworkImage:
+      type: object
+      properties:
+        urls:
+          $ref: '#/components/schemas/ArtworkImageUrl'
+        nsfw:
+          $ref: '#/components/schemas/ArtworkImageNsfw'
+    ArtworkModerate:
+      type: object
+      properties:
+        type:
+          type: string
+          example: SFW
+        status:
+          type: string
+          example: PASS
+        reason:
+          type: string
+          example: ""
+    ArtworkInfo:
+      type: object
+      properties:
+        art_id:
+          type: integer
+          format: int64
+          example: 96776766
+        title:
+          type: string
+          example: 雷電将軍
+        tag_str:
+          type: string
+          example: '#原神#雷電将軍'
+        characters:
+          type: array
+          items:
+            type: string
+            example: RaidenShogun
+        view_count:
+          type: integer
+          format: int32
+          example: 5077
+        like_count:
+          type: integer
+          format: int32
+          example: 1463
+        love_count:
+          type: integer
+          format: int32
+          example: 1959
+        artist_id:
+          type: integer
+          format: int64
+          example: 94883
+        upload_timestamp:
+          type: integer
+          format: int64
+          example: 1646752321
+        is_404:
+          type: boolean
+          example: false
+        sl:
+          type: integer
+          format: int32
+          example: 2
+        image:
+          type: array
+          items:
+            $ref: '#/components/schemas/ArtworkImage'
+        moderate:
+          $ref: '#/components/schemas/ArtworkModerate'
+    ArtworkStatistics:
+      type: object
+      properties:
+        total:
+          type: integer
+        sfw:
+          type: integer
+        nsfw:
+          type: integer
+        r18:
+          type: integer
+        latestUploadTime:
+          type: integer
+          format: int64

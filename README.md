@@ -1,5 +1,20 @@
 # Genshin Gallery API
 
+## Grading guide
+
+Run the API server. It will listen on port 8000 (by default):
+
+```shell
+$ cargo build --release
+$ MONGODB_URL=mongodb://dev:w22rust_410510_sample@34.83.92.78/pixiv?authSource=admin target/release/genshin-gallery-api
+```
+
+On <https://w22rust.minamiktr.com> swagger-ui is deployed for API documentation and testing. 
+From the `Servers` dropdown, select `http://localhost:8000/` and start testing APIs.
+
+Under each API, `Try it out` and `Execute` the example.
+
+
 ## Copyright concerns (pixiv)
 
 List of pixiv artists that ok'd reposting as long as source to the art is provided:
@@ -83,6 +98,8 @@ In addition, only artworks blessed by their artists for reposting will be used f
 
 ## Deployment
 
+Docker / kubernetes is the recommended way of deploying the project.
+
 ```shell
 MONGODB_URL=mongodb://127.0.0.1/pixiv?authSource=admin genshin-gallery-api 
 ```
@@ -96,10 +113,12 @@ dotenv genshin-gallery-api
 or use Docker
 
 ```shell
-docker run --rm -p 8000:8000 -e MONGODB_URL=mongodb://127.0.0.1/pixiv?authSource=admin genshin-gallery-api:latest
+docker run --rm -p 8000:8000 -e MONGODB_URL=mongodb://127.0.0.1/pixiv?authSource=admin museaqours/genshin-gallery-api:latest
 ```
 
 ## Mongodb dependency
+
+Spin up a disposable mongodb instance via docker (for dev and testing, not for deployment):
 
 ```shell
 docker run -d \
@@ -110,3 +129,5 @@ docker run -d \
   -e MONGO_INITDB_DATABASE=pixiv \
   mongo:4.4.12-rc1
 ```
+
+In deployment it is recommended to use a mongodb cluster, managed or self-hosted.
